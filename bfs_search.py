@@ -44,6 +44,7 @@ def bfs_candidates(
     seed_isbns: list[str],
     max_depth: int = 2,
     exclude_seeds: bool = True,
+    require_loan_info: bool = False,
 ) -> list[Candidate]:
     """시드 ISBN들에서 시작해 BFS로 max_depth 이내의 후보 도서를 수집한다.
 
@@ -52,6 +53,10 @@ def bfs_candidates(
         seed_isbns: 시작점 ISBN 리스트 (사용자가 읽은 도서들)
         max_depth: 탐색 깊이 한계 (1 = 직접 이웃만, 2 = 이웃의 이웃까지)
         exclude_seeds: True면 시드 자신은 결과에서 제외
+        require_loan_info: True면 loan_count=0(보강 안 된 leaf 노드)은 후보에서 제외.
+            그래프 빌드 단계에서 expand 안 된 노드는 메타 정보가 부실해 점수
+            계산이 왜곡될 수 있다. 안전망이 필요할 때 켠다. (BFS traversal 자체에는
+            영향 없음 — 결과 필터링만 한다)
 
     Returns:
         후보 리스트. depth 오름차순 → total_weight 내림차순으로 정렬.
@@ -107,12 +112,16 @@ def bfs_candidates(
     for isbn, info in visited.items():
         if exclude_seeds and isbn in seed_set:
             continue
+        book = nodes.get(isbn)
+        # require_loan_info: 보강 안 된 leaf 노드(loan_count=0)는 제외 — 점수 왜곡 방지
+        if require_loan_info and (book is None or book.loan_count == 0):
+            continue
         candidates.append(Candidate(
             isbn=isbn,
             depth=info["depth"],
             total_weight=info["weight"],
             paths_count=info["paths"],
-            book=nodes.get(isbn),
+            book=book,
         ))
 
     # 정렬: depth 오름차순 (가까운 노드 우선) → weight 내림차순
